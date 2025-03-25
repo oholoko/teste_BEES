@@ -32,13 +32,16 @@ def machine_learning_task_2(**context):
     temp = (
         temp\
         .withColumn('latitude',F.col('latitude').cast('Double'))\
-        .withColumn('longitude',F.col('longitude').cast('Double'))
+        .withColumn('longitude',F.col('longitude').cast('Double'))\
+        .withColumn('country',F.trim(F.col('country')))\
+        .withColumn('state',F.trim(F.col('state')))\
+        .withColumn('city',F.trim(F.col('city')))\
     )
 
-    temp.write.format('delta')\
+    temp.write4
     .mode("overwrite")\
     .option("overwriteSchema", "true")\
-    .partitionBy('country')\
+    .partitionBy('country','state','city')\
     .save("s3a://database/Silver/")
 
 

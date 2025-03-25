@@ -6,7 +6,7 @@ from datetime import datetime
 import json
 
 # Define a ML function that will be executed as a PythonOperator task
-def machine_learning_task(**context):
+def bronze_insert(**context):
     import boto3
     
     import requests
@@ -33,11 +33,17 @@ def machine_learning_task(**context):
         except:
             fail.append(brewery_page)
 
+    context["ti"].xcom_push('fail', fail)
+
 def failure_pages(**context):
     import boto3
     
     import requests
     from requests.adapters import HTTPAdapter
+
+    page_list = context['ti'].xcom_pull(key='fail')
+
+    fail = []
 
     for brewery_page in page_list:
         try:
@@ -50,6 +56,9 @@ def failure_pages(**context):
                 )
         except:
             fail.append(brewery_page)
+
+    if len(fail) > 0:
+        raise ValueError('Pages with error ({})'.format(fail))
 
 def check_countries(**context):
     import pyspark
@@ -75,13 +84,17 @@ def check_countries(**context):
 
     temp = spark.read.json("s3a://database/Bronze/")
 
+    temp = temp.withColumn('country',F.trim(F.col('country')))
+
     countries = temp\
         .groupBy("country")\
         .agg(F.count('id'))
+
     for each in countries.collect():
         all_elements = requests.get('https://api.openbrewerydb.org/v1/breweries/meta?by_country={}'.format(each[0]),timeout=5).json()
-        print(all_elements)
-        print(int(all_elements['total']) == each[1])
+        if not(int(all_elements['total']) == each[1]):
+            raise ValueError('country {} not filled properly'.format(each[0]))
+
 
 
 # Define the DAG
@@ -92,22 +105,20 @@ with DAG(
     schedule_interval="@daily",
     catchup=False,
 ) as dag:
-    task_python = PythonOperator(
+    bronze_insert = PythonOperator(
         task_id="bronze_insert",
-        python_callable=machine_learning_task,
+        python_callable=bronze_insert,
         provide_context=True  # Passes the context to the Python function
     )
-
-# Define the DAG
-with DAG(
-    dag_id="Check_Bronze",
-    description="Check country total from meta",
-    start_date=datetime(2023, 7, 1),
-    schedule_interval="@daily",
-    catchup=False,
-) as dag:
-    task_python = PythonOperator(
+    bronze_failures = PythonOperator(
+        task_id="bronze_failures",
+        python_callable=failure_pages,
+        provide_context=True  # Passes the context to the Python function
+    )
+    bronze_check = PythonOperator(
         task_id="bronze_check",
         python_callable=check_countries,
         provide_context=True  # Passes the context to the Python function
     )
+bronze_insert >> bronze_failures
+bronze_failures >> bronze_check
