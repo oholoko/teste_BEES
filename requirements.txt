@@ -1,5 +1,7 @@
 apache-airflow
 pyspark
+delta-spark
+deltalake
 grpcio-status
 apache-airflow-providers-amazon
 boto3
