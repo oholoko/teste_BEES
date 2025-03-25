@@ -6,7 +6,7 @@ from datetime import datetime
 import json
 
 # Define a ML function that will be executed as a PythonOperator task
-def machine_learning_task_2(**context):
+def silver_ingestion(**context):
     import pyspark
     from pyspark.sql import SparkSession,functions as F
 
@@ -38,7 +38,7 @@ def machine_learning_task_2(**context):
         .withColumn('city',F.trim(F.col('city')))\
     )
 
-    temp.write4
+    temp.write.format('delta')\
     .mode("overwrite")\
     .option("overwriteSchema", "true")\
     .partitionBy('country','state','city')\
@@ -48,15 +48,15 @@ def machine_learning_task_2(**context):
 
 # Define the DAG
 with DAG(
-    dag_id="machine_learning_dag_2",
-    description="A DAG for executing a machine learning",
+    dag_id="silver",
+    description="Dag que envia os dados para o delta_lake contido no folder silver",
     start_date=datetime(2023, 7, 1),
     schedule_interval="@daily",
     catchup=False,
 ) as dag:
     task_python = PythonOperator(
         task_id="python_ML",
-        python_callable=machine_learning_task_2,
+        python_callable=silver_ingestion,
         provide_context=True  # Passes the context to the Python function
     )
 

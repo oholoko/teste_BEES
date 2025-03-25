@@ -6,7 +6,7 @@ from datetime import datetime
 import json
 
 # Define a ML function that will be executed as a PythonOperator task
-def machine_learning_task_3(**context):
+def gold_ingestion(**context):
     import pyspark
     from pyspark.sql import SparkSession,functions as F
 
@@ -27,7 +27,7 @@ def machine_learning_task_3(**context):
         .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")\
         .getOrCreate()
 
-    temp = spark.read.format('delta').load("s3a://database/Silver/")
+    temp = spark.read.format('delta').load("s3a://database/Silver")
 
     city_brewery = temp.groupBy('country','state','city','brewery_type')\
         .agg(
@@ -123,15 +123,15 @@ def machine_learning_task_3(**context):
 
 # Define the DAG
 with DAG(
-    dag_id="machine_learning_dag_3",
-    description="A DAG for executing a machine learning",
+    dag_id="gold",
+    description="Gold creation",
     start_date=datetime(2023, 7, 1),
     schedule_interval="@daily",
     catchup=False,
 ) as dag:
     task_python = PythonOperator(
         task_id="python_ML",
-        python_callable=machine_learning_task_3,
+        python_callable=gold_ingestion,
         provide_context=True  # Passes the context to the Python function
     )
 
